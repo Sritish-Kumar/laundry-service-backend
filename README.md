@@ -1,2 +1,3 @@
-# laundry-service-back
+# laundry-service-backend
+
 FastAPI + PostgreSQL + SQLAlchemy
