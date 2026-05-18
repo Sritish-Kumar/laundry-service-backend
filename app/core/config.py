@@ -8,7 +8,6 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env",
                                       case_sensitive=True)
-    
 settings = Settings()
 
 # The app will throw error on deployment if the .env 
