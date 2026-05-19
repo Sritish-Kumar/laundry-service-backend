@@ -35,6 +35,7 @@ class AuthService:
         )
         
         created_user = UserRepository.create_user(db, user)
+        
         access_token = create_access_token(
             data={"sub": created_user.email, "role": created_user.role.value}
         )
@@ -60,4 +61,4 @@ class AuthService:
         
         access_token = create_access_token(data={"sub": user.email, "role": user.role.value})
         
-        return TokenResponse(access_token=access_token)        
+        return TokenResponse(access_token=access_token)

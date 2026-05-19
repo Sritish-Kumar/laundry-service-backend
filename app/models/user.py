@@ -1,5 +1,5 @@
 from sqlalchemy import String, Enum,Boolean
-from sqlalchemy.orm import Mapped,mapped_column
+from sqlalchemy.orm import Mapped,mapped_column,relationship
 from app.models.base import BaseModel
 from app.core.constants import UserRole
 
@@ -32,3 +32,9 @@ class User(BaseModel):
         Boolean(),
         default=True,
         nullable=False)
+    
+    # A User can have MANY Orders: user.orders
+    orders = relationship(
+        "Order",
+        back_populates="user"
+    )
