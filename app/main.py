@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.routers.auth_router import router as auth_router
 from app.routers.user_router import router as user_router
 from app.routers.order_router import router as order_router
+from app.routers.operations_router import router as operations_router
+from app.routers.service_type_router import router as service_type_router
 
 from app.exceptions.custom_exceptions import (
     AuthenticationError,
@@ -29,9 +31,12 @@ app.add_exception_handler(NotFoundError, not_found_exception_handler)
 app.add_exception_handler(ConflictError, conflict_exception_handler)  
 app.add_exception_handler(PermissionDeniedError, permission_denied_exception_handler)  
 
+
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(order_router)
+app.include_router(operations_router)
+app.include_router(service_type_router)
 
 app.add_middleware(RequestLoggingMiddleware)
 

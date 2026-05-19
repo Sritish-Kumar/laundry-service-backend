@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlalchemy.orm import (
     Mapped,
@@ -41,16 +42,24 @@ class LaundryItem(BaseModel):
         nullable=False
     )
     
-    service_price_snapshot: Mapped[float] = mapped_column(
+    service_price_snapshot: Mapped[Decimal] = mapped_column(
         Numeric(10,2),
         nullable=False
     )
     
-    item_total_price: Mapped[float] = mapped_column(
+    item_total_price: Mapped[Decimal] = mapped_column(
         Numeric(10,2),
         nullable=False
     )
     
+    service_type_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("service_type.id"),
+        nullable=False
+    )
+    
+    service_type = relationship(
+        "ServiceType"
+    )
     order = relationship(
         'Order',
         back_populates="items"

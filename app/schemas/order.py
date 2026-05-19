@@ -12,8 +12,7 @@ class LaundryItemCreate(BaseModel):
     
     cloth_type: str
     quantity: int
-    service_name: str
-    service_price: Decimal
+    service_type_id : uuid.UUID
     
     
 class LaundryItemResponse(BaseModel):

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from typing import List
+from typing import List,Optional
 import uuid
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,7 @@ from app.dependencies.database import get_db
 from app.models import User
 from app.schemas.order import OrderCreateRequest, OrderResponse,UpdateOrderStatusRequest
 from app.services.order_service import OrderService
-
+from app.core.constants import OrderStatus
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -24,12 +24,16 @@ def create_order(
 
 @router.get("/", response_model=List[OrderResponse])
 def get_my_orders(
+    status: Optional[OrderStatus] = None,
+    skip: int = 0,
+    limit: int = 10,
+    
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
     ):
     
     """Get all orders for the authenticated user"""
-    return OrderService.get_my_orders(db, current_user)
+    return OrderService.get_my_orders(db, current_user,status,skip,limit)
 
 @router.get("/{order_id}", response_model=OrderResponse)
 def get_order_by_id(

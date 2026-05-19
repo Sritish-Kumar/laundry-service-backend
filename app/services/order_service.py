@@ -13,6 +13,7 @@ from app.schemas.order import (
 )
 
 from app.repo.order_repo import OrderRepository
+from app.repo.service_type_repo import ServiceTypeRepository
 
 from app.models.user import User
 
@@ -53,19 +54,32 @@ class OrderService:
         
         for item_request in order_request.items:
             
-            item_total = (item_request.quantity * item_request.service_price)
+            service_type = ServiceTypeRepository.get_by_id(db,item_request.service_type_id)
+            
+            if not service_type:
+                raise NotFoundError("Service type Not Found")
+            
+            if not service_type.is_active:
+                raise ConflictError("Service type is temp closed:< ")
+            
+            
+            
+            item_total = (item_request.quantity * service_type.current_price)
+            
+            total_price += item_total
             
             laundry_item = LaundryItem(
                 cloth_type=item_request.cloth_type,
                 quantity=item_request.quantity,
-                service_name_snapshot=item_request.service_name,
-                service_price_snapshot=item_request.service_price,
+                service_type_id=service_type.id,
+                service_name_snapshot=service_type.name,
+                service_price_snapshot=service_type.current_price,
                 item_total_price=item_total
             )
-            total_price += item_total
+            
             laundry_items.append(laundry_item)
         
-        order.total_price = float(total_price)
+        order.total_price = total_price
         order.items = laundry_items
         
         created_order =  OrderRepository.create_order(db, order)
@@ -75,8 +89,9 @@ class OrderService:
 
 
     @staticmethod
-    def get_my_orders(db: Session, user: User) -> list[OrderResponse]:
-        orders = OrderRepository.get_orders_by_user_id(db, user.id)
+    def get_my_orders(db: Session, user: User, status:OrderStatus|None, skip: int = 0,limit: int = 10) -> list[OrderResponse]:
+        
+        orders = OrderRepository.get_orders_by_user_id(db, user.id,status,skip,limit)
         
         if not orders:
             raise NotFoundError("No orders found for the user.")
@@ -140,4 +155,9 @@ class OrderService:
         
         return OrderResponse.model_validate(order)
         
-        
+    @staticmethod
+    def get_operational_orders(
+        db:Session,
+        status:OrderStatus
+    ):
+        return OrderRepository.get_order_by_status(db,status)

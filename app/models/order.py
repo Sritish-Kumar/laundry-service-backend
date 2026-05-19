@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import (
     String,
@@ -38,7 +39,7 @@ class Order(BaseModel):
         default=OrderStatus.PENDING_PICKUP
     )
 
-    total_price: Mapped[float] = mapped_column(
+    total_price: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,
         default=0
