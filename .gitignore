@@ -222,3 +222,6 @@ alembic.ini
 
 #test db
 test.db
+
+# docker
+.env.docker
