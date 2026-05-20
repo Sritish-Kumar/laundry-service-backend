@@ -8,6 +8,7 @@ from app.schemas.auth import (
     UserLoginRequest,
     TokenResponse
 )
+from app.schemas.common import ApiResponse
 from app.services.auth_service import AuthService
 
 
@@ -15,10 +16,16 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/signup", response_model=TokenResponse)
+@router.post("/signup", response_model=ApiResponse[TokenResponse])
 def signup(signup_data: UserSignupRequest, db: Session = Depends(get_db)):
     """SignUp Route"""
-    return AuthService.signup(db,signup_data)
+    user =  AuthService.signup(db,signup_data)
+    
+    return ApiResponse(
+        success=True,
+        message="User Created Successfully",
+        data=TokenResponse.model_validate(user)
+    )
 
 
 

@@ -11,23 +11,39 @@ from app.exceptions.custom_exceptions import (
 async def authentication_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=401,
-        content={"detail": str(exc)}
+        content={
+            "sucsess": False,
+            "message": str(exc),
+            "data": None
+        }
     )
 
 async def not_found_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=404,
-        content={"detail": str(exc)}
+        content={
+            "sucsess": False,
+            "message": str(exc),
+            "data": None
+        }
     )
 
 async def conflict_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=409,
-        content={"detail": str(exc)}
+        content={
+            "sucsess": False,
+            "message": str(exc),
+            "data": None
+        }
     )
 
 async def permission_denied_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=403,
-        content={"detail": str(exc)}
+        content={
+            "sucsess": False,
+            "message": str(exc),
+            "data": None
+        }
     )

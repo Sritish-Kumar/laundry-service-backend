@@ -2,7 +2,7 @@ import uuid
 
 from datetime import datetime,date
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict,Field
 
 from app.core.constants import OrderStatus
 
@@ -10,10 +10,10 @@ from app.core.constants import OrderStatus
 
 class LaundryItemCreate(BaseModel):
     
-    cloth_type: str
-    quantity: int
+    # FIeld validation can we used in other schemas too
+    cloth_type: str = Field(min_length=2,max_length=50)
+    quantity: int = Field(gt=0,le=100)
     service_type_id : uuid.UUID
-    
     
 class LaundryItemResponse(BaseModel):
     

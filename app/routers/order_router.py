@@ -7,6 +7,8 @@ from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_db
 from app.models import User
 from app.schemas.order import OrderCreateRequest, OrderResponse,UpdateOrderStatusRequest
+from app.schemas.common import ApiResponse
+
 from app.services.order_service import OrderService
 from app.core.constants import OrderStatus
 
@@ -20,7 +22,15 @@ def create_order(
     ):
     
     """Create a new order for the authenticated user"""
-    return OrderService.create_order(db, order_data, current_user)
+    order =  OrderService.create_order(db, order_data, current_user)
+    
+    ## Standardized response object can be implemted on other routes too later
+    return ApiResponse(
+        success=True,
+        message="Order Created Successfully",
+        data=OrderResponse.model_validate(order)
+    )
+    
 
 @router.get("/", response_model=List[OrderResponse])
 def get_my_orders(

@@ -5,16 +5,17 @@ from datetime import datetime
 
 from pydantic import (
     BaseModel,
-    ConfigDict
+    ConfigDict,
+    Field
 )
 
 
 class ServiceTypeCreateRequest(BaseModel):
-    name: str
+    name: str = Field(min_length=2,max_length=100)
 
-    description: str | None = None
+    description: str | None = Field(default=None,max_length=255)
 
-    current_price: Decimal
+    current_price: Decimal = Field(gt=0)
 
 
 class ServiceTypeResponse(BaseModel):

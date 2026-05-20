@@ -219,3 +219,6 @@ __marimo__/
 
 #alembic
 alembic.ini
+
+#test db
+test.db
