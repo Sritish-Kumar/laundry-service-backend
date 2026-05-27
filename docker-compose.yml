@@ -1,10 +1,32 @@
 services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: sritish
+      POSTGRES_PASSWORD: sritish
+      POSTGRES_DB: laundry_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sritish -d laundry_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: .
     image: laundry-backend
     env_file:
       - .env.docker
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    environment:
+      DATABASE_URL: postgresql://sritish:sritish@db:5432/laundry_service
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
+
+volumes:
+  postgres_data:

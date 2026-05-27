@@ -24,7 +24,12 @@ Stop:
 
 Equivalent manual command:
 
-`docker run --env-file .env.docker --add-host=host.docker.internal:host-gateway -p 8000:8000 laundry-backend`
+`docker run --rm --env-file .env.docker --add-host=host.docker.internal:host-gateway -p 8000:8000 laundry-backend`
+
+If you use the manual `docker run` command, Postgres must already be running on
+your host and must accept connections from Docker. The recommended local Docker
+flow is `docker compose up --build`, because it starts Postgres and the backend
+together.
 
 <hr>
 Note: Have to make the .env and .env.docker from the .env.example file
