@@ -1,7 +1,7 @@
-**pycache**/
-_.pyc
-_.pyo
-_.pyd
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 .Python
 .env
 .env.docker
@@ -10,7 +10,7 @@ test.db
 .pytest_cache/
 .venv/
 venv/
-_.egg-info/
+*.egg-info/
 dist/
 build/
 .git
@@ -20,5 +20,5 @@ Dockerfile
 README.md
 .vscode/
 .idea/
-_.log
-_.tmp
+*.log
+*.tmp

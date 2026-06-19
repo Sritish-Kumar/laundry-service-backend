@@ -217,8 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-#alembic
-alembic.ini
+# Alembic configuration is tracked; database credentials come from environment variables.
 
 #test db
 test.db

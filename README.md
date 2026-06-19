@@ -33,4 +33,3 @@ together.
 
 <hr>
 Note: Have to make the .env and .env.docker from the .env.example file
-bcuevfeubfeubfuefbb
