@@ -4,6 +4,7 @@ from app.routers.user_router import router as user_router
 from app.routers.order_router import router as order_router
 from app.routers.operations_router import router as operations_router
 from app.routers.service_type_router import router as service_type_router
+from app.routers.health_router import router as health_router
 
 from app.exceptions.custom_exceptions import (
     AuthenticationError,
@@ -37,6 +38,7 @@ app.include_router(user_router)
 app.include_router(order_router)
 app.include_router(operations_router)
 app.include_router(service_type_router)
+app.include_router(health_router)
 
 app.add_middleware(RequestLoggingMiddleware)
 
