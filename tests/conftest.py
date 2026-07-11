@@ -24,11 +24,16 @@ TestingSessionLocal = sessionmaker(
     bind=engine
 )
 
-Base.metadata.create_all(bind=engine)
+def reset_database():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+
+reset_database()
 
 
 def override_get_db():
-    
+
     db = TestingSessionLocal()
 
     try:
@@ -41,8 +46,9 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def client():
+    reset_database()
     with TestClient(app) as c:
         yield c
         

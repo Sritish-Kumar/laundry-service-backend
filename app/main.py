@@ -24,7 +24,7 @@ from app.middlewares.logging import RequestLoggingMiddleware
 app = FastAPI(
     title="Laundry Service API",
     version="1.0.0",
-    description="API for managing laundry services, including user authentication and order processing."
+    description="API for managing laundry services"
 )
 
 app.add_exception_handler(AuthenticationError, authentication_exception_handler)  

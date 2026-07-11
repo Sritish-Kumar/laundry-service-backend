@@ -8,7 +8,6 @@ class UserSignupRequest(BaseModel):
     password: str = Field(min_length=8,max_length=128)
     role: UserRole
     
-
 class UserLoginRequest(BaseModel):
     email: EmailStr
     password: str

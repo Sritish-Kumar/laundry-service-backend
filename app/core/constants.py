@@ -6,7 +6,6 @@ class UserRole(str, Enum):
     DELIVERY_AGENT = "DELIVERY_AGENT"
     ADMIN = "ADMIN"
     
-    
 class OrderStatus(str,Enum):
     PENDING_PICKUP = 'PENDING_PICKUP'
     PICKED_UP = 'PICKED_UP'
