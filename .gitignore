@@ -224,3 +224,6 @@ test.db
 
 # docker
 .env.docker
+
+# docs
+/docs/
