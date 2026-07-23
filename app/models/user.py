@@ -38,3 +38,9 @@ class User(BaseModel):
         "Order",
         back_populates="user"
     )
+    
+    sessions = relationship(
+        "AuthSession",
+        back_populates="user",
+        cascade="all,delete-orphan"
+    )

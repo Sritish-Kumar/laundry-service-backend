@@ -21,4 +21,10 @@ class OrderStatus(str,Enum):
     DELIVERED='DELIVERED'
     
     CANCELLED='CANCELLED'
+
+class DeviceType(str, Enum):
+    WEB = 'WEB'
+    MOBILE = 'MOBILE'
+    TABLET = 'TABLET'
+    DESKTOP = 'DESKTOP'
     

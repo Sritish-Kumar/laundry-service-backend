@@ -1,5 +1,6 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+import uuid
 
 from app.exceptions.custom_exceptions import ConflictError
 from app.models import User
@@ -14,6 +15,10 @@ class UserRepository:
     @staticmethod
     def get_user_by_phone(db: Session, phone: str) -> User | None:
         return db.query(User).filter(User.phone == phone).first()
+
+    @staticmethod
+    def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
+        return db.query(User).filter(User.id == user_id).first()
 
     @staticmethod
     def create_user(db: Session, user: User) -> User:
