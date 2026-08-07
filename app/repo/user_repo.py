@@ -1,5 +1,6 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from typing import Any
 import uuid
 
 from app.exceptions.custom_exceptions import ConflictError
@@ -37,3 +38,17 @@ class UserRepository:
                 raise ConflictError("A user with this email already exists") from exc
 
             raise ConflictError("User registration failed due to a data conflict") from exc
+
+    @staticmethod
+    def update_user(
+        db: Session,
+        user: User,
+        update_data: dict[str, Any],
+    ) -> User:
+        for field, value in update_data.items():
+            if hasattr(user, field):
+                setattr(user, field, value)
+
+        db.commit()
+        db.refresh(user)
+        return user

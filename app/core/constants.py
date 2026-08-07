@@ -27,4 +27,9 @@ class DeviceType(str, Enum):
     MOBILE = 'MOBILE'
     TABLET = 'TABLET'
     DESKTOP = 'DESKTOP'
-    
+
+class VerificationPurpose(str, Enum):
+    EMAIL_VERIFICATION = "EMAIL_VERIFICATION"
+    PASSWORD_RESET = "PASSWORD_RESET"
+    EMAIL_CHANGE = "EMAIL_CHANGE"
+    PHONE_VERIFICATION = "PHONE_VERIFICATION"

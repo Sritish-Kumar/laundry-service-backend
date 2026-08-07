@@ -3,14 +3,18 @@ from datetime import UTC, datetime, timedelta
 
 from jose import jwt
 
-from app.core.constants import UserRole
+from app.core.constants import UserRole, VerificationPurpose
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     hash_refresh_token,
+    verify_password,
 )
 from app.repo.auth_session_repo import AuthSessionRepository
+from app.repo.user_repo import UserRepository
+from app.services.email_service import EmailService
+from tests.conftest import TestingSessionLocal
 
 
 def _signup_payload(**overrides):
@@ -28,9 +32,30 @@ def _signup_payload(**overrides):
 
 
 def _signup(client, **overrides):
-    response = client.post("/auth/signup", json=_signup_payload(**overrides))
+    payload = _signup_payload(**overrides)
+    response = client.post("/auth/signup", json=payload)
     assert response.status_code == 201
-    return response.json()["data"]
+
+    _mark_user_verified(payload["email"])
+
+    login_response = client.post(
+        "/auth/login",
+        json={"email": payload["email"], "password": payload["password"]},
+    )
+    assert login_response.status_code == 200
+    return login_response.json()["data"]
+
+
+def _mark_user_verified(email: str) -> None:
+    db = TestingSessionLocal()
+    try:
+        user = UserRepository.get_user_by_email(db, email)
+        if user is not None:
+            user.is_email_verified = True
+            user.email_verified_at = datetime.now(UTC)
+            db.commit()
+    finally:
+        db.close()
 
 
 def _assert_unauthorized(response):
@@ -39,6 +64,26 @@ def _assert_unauthorized(response):
     if "success" in data:
         assert data["success"] is False
         assert data["data"] is None
+
+
+def test_send_verification_email_renders_template_placeholders(monkeypatch):
+    captured = {}
+
+    class FakeProvider:
+        def send(self, *, email_message):
+            captured["html"] = email_message.html
+
+    monkeypatch.setattr(EmailService, "provider", FakeProvider())
+
+    EmailService.send_verification_email(
+        recipient="user@example.com",
+        purpose=VerificationPurpose.EMAIL_VERIFICATION,
+        otp="123456",
+    )
+
+    assert "123456" in captured["html"]
+    assert "{{ otp }}" not in captured["html"]
+    assert "{{ expiry_minutes }}" not in captured["html"]
 
 
 def _as_utc_datetime(value):
@@ -75,10 +120,8 @@ def test_signup(client):
 
     assert data["success"] is True
     assert "data" in data
-    assert "access_token" in data["data"]
-    assert "refresh_token" in data["data"]
-    assert data["data"]["expires_in"] == settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    assert data["data"]["token_type"] == "bearer"
+    assert data["data"]["email"] == payload["email"]
+    assert data["data"]["message"] == "Verification code sent successfully."
 
 
 def test_signup_duplicate_phone_returns_conflict(client):
@@ -122,6 +165,7 @@ def test_signup_duplicate_email_returns_conflict(client):
 
     first_response = client.post("/auth/signup", json=first_payload)
     assert first_response.status_code == 201
+    _mark_user_verified(first_payload["email"])
 
     duplicate_payload = {
         "full_name": "Second User",
@@ -150,6 +194,7 @@ def test_login_returns_access_token(client):
 
     signup_response = client.post("/auth/signup", json=signup_payload)
     assert signup_response.status_code == 201
+    _mark_user_verified(signup_payload["email"])
 
     login_payload = {
         "email": signup_payload["email"],
@@ -167,6 +212,36 @@ def test_login_returns_access_token(client):
     assert data["data"]["token_type"] == "bearer"
 
 
+def test_token_endpoint_returns_oauth2_token_shape(client):
+    signup_payload = {
+        "full_name": "Swagger User",
+        "email": f"swagger-{uuid.uuid4().hex}@example.com",
+        "phone": "5550000040",
+        "password": "password123",
+        "role": "CUSTOMER"
+    }
+
+    signup_response = client.post("/auth/signup", json=signup_payload)
+    assert signup_response.status_code == 201
+    _mark_user_verified(signup_payload["email"])
+
+    response = client.post(
+        "/auth/token",
+        data={
+            "username": signup_payload["email"],
+            "password": signup_payload["password"],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["expires_in"] == settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    assert data["token_type"] == "bearer"
+    assert "data" not in data
+
+
 def test_login_with_invalid_password_returns_401(client):
     signup_payload = {
         "full_name": "Login User",
@@ -178,6 +253,7 @@ def test_login_with_invalid_password_returns_401(client):
 
     signup_response = client.post("/auth/signup", json=signup_payload)
     assert signup_response.status_code == 201
+    _mark_user_verified(signup_payload["email"])
 
     login_payload = {
         "email": signup_payload["email"],
@@ -190,6 +266,162 @@ def test_login_with_invalid_password_returns_401(client):
     data = response.json()
     assert data["success"] is False
     assert data["data"] is None
+
+
+def test_login_unverified_user_returns_401_and_resends_verification(client):
+    signup_payload = {
+        "full_name": "Pending User",
+        "email": f"pending-{uuid.uuid4().hex}@example.com",
+        "phone": "5550000006",
+        "password": "password123",
+        "role": "CUSTOMER"
+    }
+
+    signup_response = client.post("/auth/signup", json=signup_payload)
+    assert signup_response.status_code == 201
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": signup_payload["email"],
+            "password": signup_payload["password"],
+        },
+    )
+
+    assert response.status_code == 401
+    data = response.json()
+    assert data["success"] is False
+    assert data["data"] is None
+    assert data["message"] == "Your email is not verified. A new verification code has been sent."
+
+
+def test_resend_verification_returns_generic_success_for_unknown_email(client):
+    response = client.post(
+        "/auth/resend-verification",
+        json={"email": f"unknown-{uuid.uuid4().hex}@example.com"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["message"] == "If an account exists and requires verification, a verification code has been sent."
+    assert data["data"] is None
+
+
+def test_forgot_password_returns_generic_success_and_allows_reset(client, db_session, monkeypatch):
+    payload = {
+        "full_name": "Reset User",
+        "email": f"forgot-{uuid.uuid4().hex}@example.com",
+        "phone": "5550000007",
+        "password": "password123",
+        "role": "CUSTOMER",
+    }
+
+    signup_response = client.post("/auth/signup", json=payload)
+    assert signup_response.status_code == 201
+    _mark_user_verified(payload["email"])
+
+    monkeypatch.setattr("app.services.verification_service.generate_otp", lambda: "123456")
+
+    forgot_response = client.post("/auth/forgot-password", json={"email": payload["email"]})
+    assert forgot_response.status_code == 200
+    assert forgot_response.json()["message"] == "If an account exists, a password reset code has been sent."
+
+    reset_response = client.post(
+        "/auth/reset-password",
+        json={"email": payload["email"], "otp": "123456", "new_password": "newpassword123"},
+    )
+
+    assert reset_response.status_code == 200
+    assert reset_response.json()["message"] == "Password reset successfully."
+
+    user = UserRepository.get_user_by_email(db_session, payload["email"])
+    assert user is not None
+    assert verify_password("newpassword123", user.password_hash)
+
+    sessions = AuthSessionRepository.get_user_sessions(db_session, user.id, active_only=False)
+    assert all(session.revoked_at is not None for session in sessions)
+
+
+def test_change_password_logs_out_all_sessions(client, db_session):
+    payload = {
+        "full_name": "Password User",
+        "email": f"change-pass-{uuid.uuid4().hex}@example.com",
+        "phone": "5550000010",
+        "password": "password123",
+        "role": "CUSTOMER",
+    }
+    signup_response = client.post("/auth/signup", json=payload)
+    assert signup_response.status_code == 201
+    _mark_user_verified(payload["email"])
+
+    login_response = client.post(
+        "/auth/login",
+        json={"email": payload["email"], "password": payload["password"]},
+    )
+    assert login_response.status_code == 200
+    token_data = login_response.json()["data"]
+    refresh_token = token_data["refresh_token"]
+    user = UserRepository.get_user_by_email(db_session, payload["email"])
+
+    response = client.post(
+        "/auth/change-password",
+        json={"current_password": "password123", "new_password": "updatedpassword123"},
+        headers={"Authorization": f"Bearer {token_data['access_token']}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password changed successfully."
+
+    sessions = AuthSessionRepository.get_user_sessions(db_session, user.id, active_only=False)
+    assert all(session.revoked_at is not None for session in sessions)
+
+    refresh_response = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+    assert refresh_response.status_code == 401
+
+
+def test_change_email_sends_verification_and_confirms_new_address(client, db_session, monkeypatch):
+    payload = {
+        "full_name": "Email User",
+        "email": f"change-email-{uuid.uuid4().hex}@example.com",
+        "phone": "5550000011",
+        "password": "password123",
+        "role": "CUSTOMER",
+    }
+    signup_response = client.post("/auth/signup", json=payload)
+    assert signup_response.status_code == 201
+    _mark_user_verified(payload["email"])
+
+    login_response = client.post(
+        "/auth/login",
+        json={"email": payload["email"], "password": payload["password"]},
+    )
+    assert login_response.status_code == 200
+    token_data = login_response.json()["data"]
+    monkeypatch.setattr("app.services.verification_service.generate_otp", lambda: "654321")
+
+    initiate_response = client.post(
+        "/auth/change-email",
+        json={"new_email": "updated@example.com"},
+        headers={"Authorization": f"Bearer {token_data['access_token']}"},
+    )
+
+    assert initiate_response.status_code == 200
+    assert initiate_response.json()["message"] == "Verification code sent to your new email address."
+
+    confirm_response = client.post(
+        "/auth/confirm-change-email",
+        json={"new_email": "updated@example.com", "otp": "654321"},
+        headers={"Authorization": f"Bearer {token_data['access_token']}"},
+    )
+
+    assert confirm_response.status_code == 200
+    assert confirm_response.json()["message"] == "Email changed successfully."
+
+    user = UserRepository.get_user_by_email(db_session, "updated@example.com")
+    assert user is not None
+    assert user.is_email_verified is True
+    assert user.email_verified_at is not None
 
 
 def test_refresh_returns_new_access_token_and_new_refresh_token(client, db_session):
@@ -378,17 +610,27 @@ def test_logout_only_revokes_matching_session(client):
     signup_payload = _signup_payload()
     signup_response = client.post("/auth/signup", json=signup_payload)
     assert signup_response.status_code == 201
-    laptop_token_data = signup_response.json()["data"]
+    _mark_user_verified(signup_payload["email"])
 
-    login_response = client.post(
+    laptop_login_response = client.post(
         "/auth/login",
         json={
             "email": signup_payload["email"],
             "password": signup_payload["password"],
         },
     )
-    assert login_response.status_code == 200
-    phone_token_data = login_response.json()["data"]
+    assert laptop_login_response.status_code == 200
+    laptop_token_data = laptop_login_response.json()["data"]
+
+    phone_login_response = client.post(
+        "/auth/login",
+        json={
+            "email": signup_payload["email"],
+            "password": signup_payload["password"],
+        },
+    )
+    assert phone_login_response.status_code == 200
+    phone_token_data = phone_login_response.json()["data"]
 
     logout_response = client.post(
         "/auth/logout",
@@ -413,17 +655,27 @@ def test_logout_all_revokes_all_user_sessions(client):
     signup_payload = _signup_payload()
     signup_response = client.post("/auth/signup", json=signup_payload)
     assert signup_response.status_code == 201
-    first_session_data = signup_response.json()["data"]
+    _mark_user_verified(signup_payload["email"])
 
-    login_response = client.post(
+    first_login_response = client.post(
         "/auth/login",
         json={
             "email": signup_payload["email"],
             "password": signup_payload["password"],
         },
     )
-    assert login_response.status_code == 200
-    second_session_data = login_response.json()["data"]
+    assert first_login_response.status_code == 200
+    first_session_data = first_login_response.json()["data"]
+
+    second_login_response = client.post(
+        "/auth/login",
+        json={
+            "email": signup_payload["email"],
+            "password": signup_payload["password"],
+        },
+    )
+    assert second_login_response.status_code == 200
+    second_session_data = second_login_response.json()["data"]
 
     response = client.post(
         "/auth/logout-all",
@@ -458,17 +710,27 @@ def test_get_sessions_marks_current_and_excludes_revoked_sessions(client, db_ses
     signup_payload = _signup_payload()
     signup_response = client.post("/auth/signup", json=signup_payload)
     assert signup_response.status_code == 201
-    first_token_data = signup_response.json()["data"]
+    _mark_user_verified(signup_payload["email"])
 
-    login_response = client.post(
+    first_login_response = client.post(
         "/auth/login",
         json={
             "email": signup_payload["email"],
             "password": signup_payload["password"],
         },
     )
-    assert login_response.status_code == 200
-    second_token_data = login_response.json()["data"]
+    assert first_login_response.status_code == 200
+    first_token_data = first_login_response.json()["data"]
+
+    second_login_response = client.post(
+        "/auth/login",
+        json={
+            "email": signup_payload["email"],
+            "password": signup_payload["password"],
+        },
+    )
+    assert second_login_response.status_code == 200
+    second_token_data = second_login_response.json()["data"]
 
     first_session = AuthSessionRepository.get_by_refresh_hash(
         db_session,

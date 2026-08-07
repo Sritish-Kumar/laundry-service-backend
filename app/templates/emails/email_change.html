@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Confirm Email Change</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; color: #1f2937">
+    <div style="max-width: 560px; margin: 0 auto; padding: 24px">
+      <h2 style="margin-bottom: 16px">Confirm your email change</h2>
+      <p>Use the code below to verify your new email address.</p>
+      <div
+        style="
+          display: inline-block;
+          padding: 14px 20px;
+          margin: 20px 0;
+          background: #f3f4f6;
+          border-radius: 8px;
+          font-size: 24px;
+          letter-spacing: 4px;
+          font-weight: bold;
+        "
+      >
+        {{ otp }}
+      </div>
+      <p>This code expires in {{ expiry_minutes }} minutes.</p>
+    </div>
+  </body>
+</html>

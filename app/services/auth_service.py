@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.constants import DeviceType
+from app.core.constants import DeviceType, VerificationPurpose
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -19,7 +19,22 @@ from app.exceptions.custom_exceptions import AuthenticationError, ConflictError,
 from app.models import AuthSession, User
 from app.repo.auth_session_repo import AuthSessionRepository
 from app.repo.user_repo import UserRepository
-from app.schemas.auth import AuthSessionResponse, RefreshTokenRequest, TokenResponse, UserLoginRequest, UserSignupRequest
+from app.schemas.auth import (
+    AuthSessionResponse,
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+    ConfirmEmailChangeRequest,
+    ForgotPasswordRequest,
+    RefreshTokenRequest,
+    ResendVerificationRequest,
+    ResetPasswordRequest,
+    SignupResponse,
+    TokenResponse,
+    UserLoginRequest,
+    UserSignupRequest,
+    VerifyEmailRequest,
+)
+from app.services.verification_service import VerificationRequest, VerificationService
 
 
 @dataclass
@@ -32,17 +47,37 @@ class SessionMetadata:
 
 class AuthService:
     INVALID_AUTH_MESSAGE = "Invalid authentication credentials"
+    EMAIL_NOT_VERIFIED_MESSAGE = "Your email is not verified. A new verification code has been sent."
+    GENERIC_VERIFICATION_SENT_MESSAGE = (
+        "If an account exists and requires verification, a verification code has been sent."
+    )
+    FORGOT_PASSWORD_SUCCESS_MESSAGE = "If an account exists, a password reset code has been sent."
+    SIGNUP_SUCCESS_MESSAGE = "Verification code sent successfully."
+    RESET_PASSWORD_SUCCESS_MESSAGE = "Password reset successfully."
+    CHANGE_PASSWORD_SUCCESS_MESSAGE = "Password changed successfully."
+    CHANGE_EMAIL_SENT_MESSAGE = "Verification code sent to your new email address."
+    CHANGE_EMAIL_SUCCESS_MESSAGE = "Email changed successfully."
 
     @staticmethod
     def signup(
         db: Session,
         signup_data: UserSignupRequest,
-        metadata: SessionMetadata
-    ) -> TokenResponse:
-        """Register a new user and issue authentication tokens."""
+    ) -> SignupResponse:
+        """Register a new user and send an email verification code."""
         existing_user_by_email = UserRepository.get_user_by_email(db, signup_data.email)
         if existing_user_by_email:
-            raise ConflictError("A user with this email already exists")
+            existing_user_by_phone = UserRepository.get_user_by_phone(db, signup_data.phone)
+            if existing_user_by_phone and existing_user_by_phone.id != existing_user_by_email.id:
+                raise ConflictError("A user with this phone number already exists")
+
+            if existing_user_by_email.is_email_verified:
+                raise ConflictError("A user with this email already exists")
+
+            AuthService._send_signup_verification(db, existing_user_by_email)
+            return SignupResponse(
+                email=existing_user_by_email.email,
+                message=AuthService.SIGNUP_SUCCESS_MESSAGE,
+            )
 
         existing_user_by_phone = UserRepository.get_user_by_phone(db, signup_data.phone)
         if existing_user_by_phone:
@@ -54,11 +89,17 @@ class AuthService:
             phone=signup_data.phone,
             password_hash=hash_password(signup_data.password),
             role=signup_data.role,
+            is_email_verified=False,
+            email_verified_at=None,
         )
 
         created_user = UserRepository.create_user(db, user)
+        AuthService._send_signup_verification(db, created_user)
 
-        return AuthService._issue_tokens(db, created_user, metadata)
+        return SignupResponse(
+            email=created_user.email,
+            message=AuthService.SIGNUP_SUCCESS_MESSAGE,
+        )
 
     @staticmethod
     def login(
@@ -69,13 +110,166 @@ class AuthService:
         """Validate credentials and issue authentication tokens."""
         user = UserRepository.get_user_by_email(db, login_data.email)
 
-        if not user:
-            raise AuthenticationError("Invalid email or password")
+        if not user or not verify_password(login_data.password, user.password_hash):
+            raise AuthenticationError(AuthService.INVALID_AUTH_MESSAGE)
 
-        if not verify_password(login_data.password, user.password_hash):
-            raise AuthenticationError("Invalid email or password")
+        if not user.is_email_verified:
+            try:
+                VerificationService.resend(
+                    db,
+                    AuthService._build_verification_request(user),
+                )
+            except ConflictError:
+                pass
+
+            raise AuthenticationError(AuthService.EMAIL_NOT_VERIFIED_MESSAGE)
 
         return AuthService._issue_tokens(db, user, metadata)
+
+    @staticmethod
+    def resend_verification(
+        db: Session,
+        resend_data: ResendVerificationRequest,
+    ) -> None:
+        """Send a verification code when the account exists and is still unverified."""
+        user = UserRepository.get_user_by_email(db, resend_data.email)
+        if not user or user.is_email_verified:
+            return
+
+        try:
+            VerificationService.resend(
+                db,
+                AuthService._build_verification_request(user),
+            )
+        except ConflictError:
+            return
+
+    @staticmethod
+    def verify_email(
+        db: Session,
+        verify_data: VerifyEmailRequest,
+    ) -> None:
+        """Verify a user with a valid OTP and mark their email as confirmed."""
+        existing_user = UserRepository.get_user_by_email(db, verify_data.email)
+        if existing_user and existing_user.is_email_verified:
+            raise ConflictError("Email is already verified")
+
+        verified_user = VerificationService.verify(
+            db,
+            verify_data.email,
+            verify_data.otp,
+            VerificationPurpose.EMAIL_VERIFICATION,
+        )
+
+        if verified_user.is_email_verified:
+            raise ConflictError("Email is already verified")
+
+        UserRepository.update_user(
+            db,
+            verified_user,
+            {
+                "is_email_verified": True,
+                "email_verified_at": current_utc(),
+            },
+        )
+
+    @staticmethod
+    def forgot_password(db: Session, forgot_data: ForgotPasswordRequest) -> None:
+        """Send a password reset OTP to an existing account without revealing account state."""
+        user = UserRepository.get_user_by_email(db, forgot_data.email)
+        if not user:
+            return
+
+        VerificationService.send_verification(
+            db,
+            AuthService._build_verification_request(
+                user,
+                identifier=user.email,
+                purpose=VerificationPurpose.PASSWORD_RESET,
+            ),
+        )
+
+    @staticmethod
+    def reset_password(db: Session, reset_data: ResetPasswordRequest) -> None:
+        """Verify a password reset OTP and replace the account password."""
+        verified_user = VerificationService.verify(
+            db,
+            reset_data.email,
+            reset_data.otp,
+            VerificationPurpose.PASSWORD_RESET,
+        )
+
+        UserRepository.update_user(
+            db,
+            verified_user,
+            {"password_hash": hash_password(reset_data.new_password)},
+        )
+        AuthService.logout_all(db, verified_user)
+
+    @staticmethod
+    def change_password(
+        db: Session,
+        user: User,
+        change_data: ChangePasswordRequest,
+    ) -> None:
+        """Change the currently authenticated user's password and revoke every session."""
+        if not verify_password(change_data.current_password, user.password_hash):
+            raise AuthenticationError("Invalid current password")
+
+        UserRepository.update_user(
+            db,
+            user,
+            {"password_hash": hash_password(change_data.new_password)},
+        )
+        AuthService.logout_all(db, user)
+
+    @staticmethod
+    def change_email(
+        db: Session,
+        user: User,
+        change_data: ChangeEmailRequest,
+    ) -> None:
+        """Send an email change OTP to the requested new address."""
+        existing_user = UserRepository.get_user_by_email(db, change_data.new_email)
+        if existing_user and existing_user.id != user.id:
+            raise ConflictError("A user with this email already exists")
+
+        VerificationService.send_verification(
+            db,
+            AuthService._build_verification_request(
+                user,
+                identifier=change_data.new_email,
+                purpose=VerificationPurpose.EMAIL_CHANGE,
+            ),
+        )
+
+    @staticmethod
+    def confirm_change_email(
+        db: Session,
+        user: User,
+        confirm_data: ConfirmEmailChangeRequest,
+    ) -> None:
+        """Verify an email change OTP and update the authenticated user's email."""
+        existing_user = UserRepository.get_user_by_email(db, confirm_data.new_email)
+        if existing_user and existing_user.id != user.id:
+            raise ConflictError("A user with this email already exists")
+
+        verified_user = VerificationService.verify(
+            db,
+            confirm_data.new_email,
+            confirm_data.otp,
+            VerificationPurpose.EMAIL_CHANGE,
+        )
+
+        UserRepository.update_user(
+            db,
+            verified_user,
+            {
+                "email": confirm_data.new_email,
+                "is_email_verified": True,
+                "email_verified_at": current_utc(),
+            },
+        )
 
     @staticmethod
     def refresh(db: Session, refresh_data: RefreshTokenRequest) -> TokenResponse:
@@ -256,4 +450,26 @@ class AuthService:
             last_used_at=issued_at,
             expires_at=expires_at,
             revoked_at=None,
+        )
+
+    @staticmethod
+    def _build_verification_request(
+        user: User,
+        *,
+        identifier: str | None = None,
+        purpose: VerificationPurpose = VerificationPurpose.EMAIL_VERIFICATION,
+    ) -> VerificationRequest:
+        """Create a verification request for a user with a specific purpose and identifier."""
+        return VerificationRequest(
+            user=user,
+            identifier=identifier or user.email,
+            purpose=purpose,
+        )
+
+    @staticmethod
+    def _send_signup_verification(db: Session, user: User) -> None:
+        """Generate and send a verification code for a newly created or reactivated account."""
+        VerificationService.send_verification(
+            db,
+            AuthService._build_verification_request(user),
         )

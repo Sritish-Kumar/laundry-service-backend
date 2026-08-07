@@ -1,5 +1,7 @@
-from sqlalchemy import String, Enum,Boolean
-from sqlalchemy.orm import Mapped,mapped_column,relationship
+from datetime import datetime
+
+from sqlalchemy import String, Enum, Boolean, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import BaseModel
 from app.core.constants import UserRole
 
@@ -32,7 +34,16 @@ class User(BaseModel):
         Boolean(),
         default=True,
         nullable=False)
-    
+
+    is_email_verified: Mapped[bool] = mapped_column(
+        Boolean(),
+        default=False,
+        nullable=False)
+
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True)
+
     # A User can have MANY Orders: user.orders
     orders = relationship(
         "Order",
@@ -43,4 +54,10 @@ class User(BaseModel):
         "AuthSession",
         back_populates="user",
         cascade="all,delete-orphan"
+    )
+
+    verifications = relationship(
+        "Verification",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
