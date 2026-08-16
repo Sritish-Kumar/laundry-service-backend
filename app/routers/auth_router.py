@@ -328,11 +328,27 @@ def login_for_access_token(
     return AuthService.login(db, login_data, _get_session_metadata(request))
 
 
+# def _get_session_metadata(request: Request) -> SessionMetadata:
+#     """Build request metadata for auth sessions from the incoming FastAPI request."""
+#     return SessionMetadata(
+#         device_name=None,
+#         device_type=DeviceType.WEB,
+#         user_agent=request.headers.get("user-agent"),
+#         ip_address=request.client.host if request.client else None,
+#     )
 def _get_session_metadata(request: Request) -> SessionMetadata:
-    """Build request metadata for auth sessions from the incoming FastAPI request."""
+    """Build session metadata from the incoming request."""
+    device_type_header = request.headers.get("x-device-type")
+    device_name = request.headers.get("x-device-name")
+
+    try:
+        device_type = DeviceType(device_type_header) if device_type_header else DeviceType.WEB
+    except ValueError:
+        device_type = DeviceType.WEB
+
     return SessionMetadata(
-        device_name=None,
-        device_type=DeviceType.WEB,
+        device_name=device_name,
+        device_type=device_type,
         user_agent=request.headers.get("user-agent"),
         ip_address=request.client.host if request.client else None,
     )
