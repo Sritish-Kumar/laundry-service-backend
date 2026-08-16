@@ -43,12 +43,14 @@ class UserRepository:
     def update_user(
         db: Session,
         user: User,
-        update_data: dict[str, Any],
+        update_data: dict[str, Any] | None = None,
     ) -> User:
-        for field, value in update_data.items():
-            if hasattr(user, field):
-                setattr(user, field, value)
+        if update_data:
+            for field, value in update_data.items():
+                if hasattr(user, field):
+                    setattr(user, field, value)
 
+        db.add(user)
         db.commit()
         db.refresh(user)
         return user
