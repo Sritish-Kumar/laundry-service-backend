@@ -14,23 +14,22 @@ from app.core.constants import OrderStatus
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
-@router.post("/", response_model=OrderResponse)
+@router.post("/", response_model=ApiResponse[OrderResponse], status_code=201)
 def create_order(
-    order_data: OrderCreateRequest, 
-    db: Session = Depends(get_db), 
+    order_data: OrderCreateRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
     ):
-    
+
     """Create a new order for the authenticated user"""
-    order =  OrderService.create_order(db, order_data, current_user)
-    
-    ## Standardized response object can be implemted on other routes too later
+    order = OrderService.create_order(db, order_data, current_user)
+
     return ApiResponse(
         success=True,
         message="Order Created Successfully",
-        data=OrderResponse.model_validate(order)
+        data=order
     )
-    
+
 
 @router.get("/", response_model=List[OrderResponse])
 def get_my_orders(

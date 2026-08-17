@@ -226,6 +226,6 @@ test.db
 .env.docker
 
 # docs
-/docs/
+/docs/*
 
 AGENTS.md

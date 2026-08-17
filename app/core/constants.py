@@ -14,7 +14,7 @@ class OrderStatus(str,Enum):
     SORTING = 'SORTING'
     WASHING = 'WASHING'
     DRYING = 'DRYING'
-    IRONING = 'DRYING'
+    IRONING = 'IRONING'
     PACKING = 'PACKING'
     
     OUT_FOR_DELIVERY= 'OUT_FOR_DELIVERY'

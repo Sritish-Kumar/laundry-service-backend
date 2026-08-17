@@ -30,13 +30,14 @@ class LaundryItemResponse(BaseModel):
 # Order schemas
 
 class OrderCreateRequest(BaseModel):
-    
+
+    address_id: uuid.UUID
     items: list[LaundryItemCreate]
     pickup_slot: str
     pickup_date: date
-    
+
 class OrderResponse(BaseModel):
-    
+
     id: uuid.UUID
     public_order_number: str
     status: OrderStatus
@@ -45,7 +46,23 @@ class OrderResponse(BaseModel):
     pickup_slot: str
     created_at: datetime
     items: list[LaundryItemResponse]
-    
+
+    recipient_name: str
+    recipient_phone: str
+
+    address_line_1: str
+    address_line_2: str | None
+    landmark: str | None
+
+    city: str
+    state: str
+    postal_code: str
+    country: str
+
+    latitude: Decimal
+    longitude: Decimal
+    location_accuracy: Decimal | None
+
     model_config = ConfigDict(from_attributes=True)
     
     

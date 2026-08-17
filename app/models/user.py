@@ -45,9 +45,13 @@ class User(BaseModel):
         nullable=True)
 
     # A User can have MANY Orders: user.orders
+    # foreign_keys pins this to Order.user_id — orders also has
+    # pickup_agent_id/delivery_agent_id FKs to users.id, which would
+    # otherwise make the join ambiguous.
     orders = relationship(
         "Order",
-        back_populates="user"
+        back_populates="user",
+        foreign_keys="Order.user_id"
     )
     
     sessions = relationship(
