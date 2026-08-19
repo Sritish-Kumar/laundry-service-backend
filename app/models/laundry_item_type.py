@@ -5,8 +5,8 @@ from sqlalchemy.orm import Mapped,mapped_column,relationship
 from app.models.base import BaseModel
 
 
-class ServiceType(BaseModel):
-    __tablename__ = "service_type"
+class LaundryItemType(BaseModel):
+    __tablename__ = "laundry_item_type"
 
     name: Mapped[str] = mapped_column(String,unique=True,nullable=False)
 
@@ -16,5 +16,5 @@ class ServiceType(BaseModel):
 
     pricings = relationship(
         "ServicePricing",
-        back_populates="service_type"
+        back_populates="laundry_item_type"
     )

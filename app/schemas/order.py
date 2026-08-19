@@ -9,21 +9,20 @@ from app.core.constants import OrderStatus
 # LaundryItem schemas
 
 class LaundryItemCreate(BaseModel):
-    
-    # FIeld validation can we used in other schemas too
-    cloth_type: str = Field(min_length=2,max_length=50)
+
+    laundry_item_type_id: uuid.UUID
     quantity: int = Field(gt=0,le=100)
     service_type_id : uuid.UUID
-    
+
 class LaundryItemResponse(BaseModel):
-    
+
     id: uuid.UUID
-    cloth_type: str
+    item_type_name_snapshot: str
     quantity: int
     service_name_snapshot: str
     service_price_snapshot: Decimal
     item_total_price: Decimal
-    
+
     model_config = ConfigDict(from_attributes=True)
     
 

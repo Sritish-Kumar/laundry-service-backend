@@ -15,6 +15,8 @@ from app.schemas.order import (
 
 from app.repo.order_repo import OrderRepository
 from app.repo.service_type_repo import ServiceTypeRepository
+from app.repo.laundry_item_type_repo import LaundryItemTypeRepository
+from app.repo.service_pricing_repo import ServicePricingRepository
 from app.repo.address_repo import AddressRepository
 
 from app.models.user import User
@@ -62,16 +64,34 @@ class OrderService:
             if not service_type.is_active:
                 raise ConflictError("Service type is temp closed:< ")
 
-            item_total = (item_request.quantity * service_type.current_price)
+            laundry_item_type = LaundryItemTypeRepository.get_by_id(db, item_request.laundry_item_type_id)
+
+            if not laundry_item_type:
+                raise NotFoundError("Laundry item type not found")
+
+            if not laundry_item_type.is_active:
+                raise ConflictError("Laundry item type is temp closed:< ")
+
+            pricing = ServicePricingRepository.get_pricing(
+                db, service_type.id, laundry_item_type.id, active_only=True
+            )
+
+            if not pricing:
+                raise NotFoundError(
+                    "No active pricing found for this service and laundry item type combination"
+                )
+
+            item_total = (item_request.quantity * pricing.price)
 
             total_price += item_total
 
             item_snapshots.append({
-                "cloth_type": item_request.cloth_type,
+                "laundry_item_type_id": laundry_item_type.id,
+                "item_type_name_snapshot": laundry_item_type.name,
                 "quantity": item_request.quantity,
                 "service_type_id": service_type.id,
                 "service_name_snapshot": service_type.name,
-                "service_price_snapshot": service_type.current_price,
+                "service_price_snapshot": pricing.price,
                 "item_total_price": item_total,
             })
 

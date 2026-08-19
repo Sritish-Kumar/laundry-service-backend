@@ -26,17 +26,21 @@ class LaundryItem(BaseModel):
         nullable=False
     )
     
-    # to be updated later to have different cloth type and different price for it
-    cloth_type: Mapped[str] = mapped_column(
+    laundry_item_type_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("laundry_item_type.id"),
+        nullable=False
+    )
+
+    item_type_name_snapshot: Mapped[str] = mapped_column(
         String,
         nullable=False
     )
-    
+
     quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False
     )
-    
+
     service_name_snapshot: Mapped[str] = mapped_column(
         String,
         nullable=False
@@ -59,6 +63,9 @@ class LaundryItem(BaseModel):
     
     service_type = relationship(
         "ServiceType"
+    )
+    laundry_item_type = relationship(
+        "LaundryItemType"
     )
     order = relationship(
         'Order',

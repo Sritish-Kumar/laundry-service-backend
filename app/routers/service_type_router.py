@@ -1,3 +1,4 @@
+import uuid
 from typing import List
 
 from fastapi import (
@@ -21,11 +22,20 @@ from app.core.constants import (
 
 from app.schemas.service_type import (
     ServiceTypeCreateRequest,
+    ServiceTypeUpdateRequest,
     ServiceTypeResponse
+)
+
+from app.schemas.service_pricing import (
+    ServiceItemPriceResponse
 )
 
 from app.services.service_type_service import (
     ServiceTypeService
+)
+
+from app.services.service_pricing_service import (
+    ServicePricingService
 )
 
 
@@ -33,6 +43,8 @@ router = APIRouter(
     prefix="/service-types",
     tags=["Service Types"]
 )
+
+_admin_only = require_roles([UserRole.ADMIN])
 
 
 @router.post(
@@ -44,11 +56,7 @@ def create_service_type(
 
     db: Session = Depends(get_db),
 
-    current_user=Depends(
-        require_roles([
-            UserRole.ADMIN
-        ])
-    )
+    current_user=Depends(_admin_only)
 ):
     return (
         ServiceTypeService.create_service_type(
@@ -68,5 +76,60 @@ def get_all_service_types(
     return (
         ServiceTypeService.get_all_service_types(
             db
+        )
+    )
+
+
+@router.get(
+    "/{service_type_id}",
+    response_model=ServiceTypeResponse
+)
+def get_service_type(
+    service_type_id: uuid.UUID,
+
+    db: Session = Depends(get_db)
+):
+    return (
+        ServiceTypeService.get_active_service_type(
+            db,
+            service_type_id
+        )
+    )
+
+
+@router.patch(
+    "/{service_type_id}",
+    response_model=ServiceTypeResponse
+)
+def update_service_type(
+    service_type_id: uuid.UUID,
+    payload: ServiceTypeUpdateRequest,
+
+    db: Session = Depends(get_db),
+
+    current_user=Depends(_admin_only)
+):
+    return (
+        ServiceTypeService.update_service_type(
+            db,
+            service_type_id,
+            payload
+        )
+    )
+
+
+@router.get(
+    "/{service_type_id}/items",
+    response_model=List[ServiceItemPriceResponse]
+)
+def get_items_for_service(
+    service_type_id: uuid.UUID,
+
+    db: Session = Depends(get_db)
+):
+    return (
+        ServicePricingService.get_items_for_service(
+            db,
+            service_type_id
         )
     )

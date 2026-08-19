@@ -1,9 +1,14 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from app.models.order_status_history import OrderStatusHistory
 from app.repo.user_repo import UserRepository
+from app.schemas.laundry_item_type import LaundryItemTypeCreateRequest
+from app.schemas.service_pricing import ServicePricingCreateRequest
+from app.services.laundry_item_type_service import LaundryItemTypeService
+from app.services.service_pricing_service import ServicePricingService
 from tests.conftest import TestingSessionLocal
 
 
@@ -87,7 +92,6 @@ def _service_type_payload(**overrides):
     payload = {
         "name": f"Wash & Fold {uuid.uuid4().hex[:8]}",
         "description": "Standard laundry wash and fold service",
-        "current_price": "12.50",
     }
     payload.update(overrides)
     return payload
@@ -103,23 +107,54 @@ def _create_service_type(client, admin_headers, **overrides):
     return response.json()
 
 
-def _order_payload(address_id, service_type_id, **overrides):
+def _create_laundry_item_type(**overrides):
+    db = TestingSessionLocal()
+    try:
+        payload = LaundryItemTypeCreateRequest(
+            name=overrides.pop("name", f"Shirt {uuid.uuid4().hex[:8]}"),
+            **overrides,
+        )
+        item_type = LaundryItemTypeService.create_laundry_item_type(db, payload)
+        return {"id": str(item_type.id), "name": item_type.name}
+    finally:
+        db.close()
+
+
+def _create_service_pricing(service_type_id, laundry_item_type_id, price="12.50"):
+    db = TestingSessionLocal()
+    try:
+        payload = ServicePricingCreateRequest(
+            service_type_id=uuid.UUID(service_type_id),
+            laundry_item_type_id=uuid.UUID(laundry_item_type_id),
+            price=Decimal(price),
+        )
+        pricing = ServicePricingService.create_service_pricing(db, payload)
+        return {"id": str(pricing.id), "price": str(pricing.price)}
+    finally:
+        db.close()
+
+
+def _order_payload(address_id, service_type_id, laundry_item_type_id, **overrides):
     payload = {
         "address_id": address_id,
         "pickup_date": "2026-08-20",
         "pickup_slot": "10:00-12:00",
         "items": [
-            {"cloth_type": "Shirt", "quantity": 3, "service_type_id": service_type_id}
+            {
+                "laundry_item_type_id": laundry_item_type_id,
+                "quantity": 3,
+                "service_type_id": service_type_id,
+            }
         ],
     }
     payload.update(overrides)
     return payload
 
 
-def _create_order(client, customer_headers, address_id, service_type_id):
+def _create_order(client, customer_headers, address_id, service_type_id, laundry_item_type_id):
     response = client.post(
         "/orders/",
-        json=_order_payload(address_id, service_type_id),
+        json=_order_payload(address_id, service_type_id, laundry_item_type_id),
         headers=customer_headers,
     )
     assert response.status_code == 201
@@ -159,9 +194,11 @@ class _Scenario:
 
         address = _create_address(client, self.customer_headers, label="Home")
         service_type = _create_service_type(client, self.admin_headers)
+        item_type = _create_laundry_item_type()
+        _create_service_pricing(service_type["id"], item_type["id"])
 
         self.order = _create_order(
-            client, self.customer_headers, address["id"], service_type["id"]
+            client, self.customer_headers, address["id"], service_type["id"], item_type["id"]
         )
 
     def advance_to_out_for_delivery(self):

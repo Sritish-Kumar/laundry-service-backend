@@ -9,13 +9,13 @@ from pydantic import (
 )
 
 
-class ServiceTypeCreateRequest(BaseModel):
+class LaundryItemTypeCreateRequest(BaseModel):
     name: str = Field(min_length=2,max_length=100)
 
     description: str | None = Field(default=None,max_length=255)
 
 
-class ServiceTypeUpdateRequest(BaseModel):
+class LaundryItemTypeUpdateRequest(BaseModel):
     name: str | None = Field(default=None,min_length=2,max_length=100)
 
     description: str | None = Field(default=None,max_length=255)
@@ -23,7 +23,7 @@ class ServiceTypeUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
-class ServiceTypeResponse(BaseModel):
+class LaundryItemTypeResponse(BaseModel):
     id: uuid.UUID
 
     name: str

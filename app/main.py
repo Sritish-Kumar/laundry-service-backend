@@ -6,6 +6,8 @@ from app.routers.order_router import router as order_router
 from app.routers.delivery_router import router as delivery_router
 from app.routers.operations_router import router as operations_router
 from app.routers.service_type_router import router as service_type_router
+from app.routers.laundry_item_type_router import router as laundry_item_type_router
+from app.routers.service_pricing_router import router as service_pricing_router
 from app.routers.health_router import router as health_router
 
 from app.exceptions.custom_exceptions import (
@@ -42,6 +44,8 @@ app.include_router(order_router)
 app.include_router(delivery_router)
 app.include_router(operations_router)
 app.include_router(service_type_router)
+app.include_router(laundry_item_type_router)
+app.include_router(service_pricing_router)
 app.include_router(health_router)
 
 app.add_middleware(RequestLoggingMiddleware)
