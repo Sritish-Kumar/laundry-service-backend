@@ -229,3 +229,5 @@ test.db
 /docs/*
 
 AGENTS.md
+
+dev-tools

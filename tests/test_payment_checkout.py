@@ -651,6 +651,34 @@ def test_duplicate_webhook_delivery_is_safe(client, fake_razorpay):
     assert payment.razorpay_payment_id == "pay_WH1"
 
 
+def test_captured_webhook_rescues_a_payment_that_previously_failed(client, fake_razorpay):
+    # Razorpay lets a customer retry within the same order_id after a
+    # failed attempt — a later successful attempt must still win, even
+    # though an earlier webhook already flipped the payment to FAILED.
+    order_data, headers = _create_order(client)
+    checkout = _checkout(client, order_data, headers)
+    headers_wh = {"X-Razorpay-Signature": "valid-webhook-sig"}
+
+    first_attempt = client.post(
+        "/payments/webhooks/razorpay",
+        json=_webhook_payload("payment.failed", checkout["razorpay_order_id"], "pay_ATTEMPT1", "failed"),
+        headers=headers_wh,
+    )
+    assert first_attempt.status_code == 200
+    assert _get_payment_from_db(order_data["id"]).payment_status == PaymentStatus.FAILED
+
+    second_attempt = client.post(
+        "/payments/webhooks/razorpay",
+        json=_webhook_payload("payment.captured", checkout["razorpay_order_id"], "pay_ATTEMPT2", "captured"),
+        headers=headers_wh,
+    )
+    assert second_attempt.status_code == 200
+
+    payment = _get_payment_from_db(order_data["id"])
+    assert payment.payment_status == PaymentStatus.PAID
+    assert payment.razorpay_payment_id == "pay_ATTEMPT2"
+
+
 def test_webhook_before_callback_then_callback_is_safe(client, fake_razorpay):
     order_data, headers = _create_order(client)
     checkout = _checkout(client, order_data, headers)
