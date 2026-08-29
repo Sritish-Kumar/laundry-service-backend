@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str | None = None
     EMAIL_FROM: str = "noreply@mail.laundry.sritishkumar.online"
 
+    RAZORPAY_KEY_ID: str | None = None
+    RAZORPAY_KEY_SECRET: str | None = None
+    RAZORPAY_WEBHOOK_SECRET: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env" if os.path.exists(".env") else None,
                                       extra="ignore",
                                       case_sensitive=True)

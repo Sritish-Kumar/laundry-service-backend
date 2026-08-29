@@ -42,6 +42,7 @@ python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.29
 PyYAML==6.0.3
+razorpay==2.0.1
 requests==2.34.2
 resend==2.35.0
 rich==15.0.0

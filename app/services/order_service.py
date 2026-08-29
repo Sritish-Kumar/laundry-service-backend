@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import Order
 from app.models.laundry_item import LaundryItem
 from app.models.order_status_history import OrderStatusHistory
+from app.models.payment import Payment
 
 from app.schemas.order import (
     OrderCreateRequest,
@@ -29,7 +30,7 @@ from app.exceptions.custom_exceptions import(
 )
 
 from app.core.workflow import VALID_ORDER_TRANSITIONS, TRANSITION_PERMISSIONS, AGENT_OWNERSHIP_TRANSITIONS
-from app.core.constants import UserRole,OrderStatus
+from app.core.constants import UserRole,OrderStatus,PaymentMethod,PaymentStatus
 
 MAX_ORDER_NUMBER_ATTEMPTS = 5
 
@@ -131,6 +132,16 @@ class OrderService:
                 )
             ]
 
+            # The frontend only chooses RAZORPAY vs COD; amount always comes
+            # from our own price calculation above, never from the request.
+            # Assigned via the relationship (like items/status_history above)
+            # so it's persisted atomically with the Order.
+            order.payment = Payment(
+                payment_method=order_request.payment_method,
+                payment_status=PaymentStatus.PENDING,
+                amount=total_price,
+            )
+
             try:
                 created_order = OrderRepository.create_order(db, order)
             except ConflictError as exc:
@@ -214,7 +225,32 @@ class OrderService:
                     "You are not the delivery agent assigned to this order."
                 )
 
-        # Step 4 + 5: update status and create exactly one history record,
+        # Step 4: payment gate. An online (RAZORPAY) order must be paid
+        # before physical fulfillment starts; a COD order must be paid
+        # (cash collected) before it can be marked delivered. Checked after
+        # authorization so an unauthorized caller never learns payment state.
+        payment = order.payment
+
+        if payment is not None:
+            if (
+                transition == (OrderStatus.PENDING_PICKUP, OrderStatus.PICKED_UP)
+                and payment.payment_method == PaymentMethod.RAZORPAY
+                and payment.payment_status != PaymentStatus.PAID
+            ):
+                raise ConflictError(
+                    "This order's Razorpay payment must be completed before pickup can begin."
+                )
+
+            if (
+                transition == (OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED)
+                and payment.payment_method == PaymentMethod.COD
+                and payment.payment_status != PaymentStatus.PAID
+            ):
+                raise ConflictError(
+                    "COD payment must be collected before this order can be marked delivered."
+                )
+
+        # Step 5 + 6: update status and create exactly one history record,
         # committed together atomically.
         order.status = new_status
 

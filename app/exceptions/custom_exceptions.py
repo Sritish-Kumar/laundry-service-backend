@@ -13,3 +13,7 @@ class ConflictError(Exception):
 class PermissionDeniedError(Exception):
     """Custom exception for permission denied errors."""
     pass
+
+class ValidationError(Exception):
+    """Custom exception for validation errors (e.g. invalid Razorpay signature)."""
+    pass

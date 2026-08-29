@@ -8,4 +8,5 @@ from app.models.service_pricing import ServicePricing
 from app.models.auth_session import AuthSession
 from app.models.verification import Verification
 from app.models.address import Address
+from app.models.payment import Payment
 from app.models.base import BaseModel, TimestampMixin, UUIDMixin

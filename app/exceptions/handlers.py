@@ -5,7 +5,8 @@ from app.exceptions.custom_exceptions import (
     AuthenticationError,
     NotFoundError,
     ConflictError,
-    PermissionDeniedError
+    PermissionDeniedError,
+    ValidationError
     )
 
 async def authentication_exception_handler(request: Request, exc: Exception):
@@ -44,6 +45,17 @@ async def conflict_exception_handler(request: Request, exc: Exception):
 async def permission_denied_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=403,
+        content={
+            "success": False,
+            "message": str(exc),
+            "data": None,
+        },
+    )
+
+
+async def validation_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=400,
         content={
             "success": False,
             "message": str(exc),

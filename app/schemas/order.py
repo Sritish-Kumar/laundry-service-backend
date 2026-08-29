@@ -4,7 +4,8 @@ from datetime import datetime,date
 from decimal import Decimal
 from pydantic import BaseModel, ConfigDict,Field
 
-from app.core.constants import OrderStatus
+from app.core.constants import OrderStatus, PaymentMethod
+from app.schemas.payment import PaymentResponse
 
 # LaundryItem schemas
 
@@ -34,6 +35,10 @@ class OrderCreateRequest(BaseModel):
     items: list[LaundryItemCreate]
     pickup_slot: str
     pickup_date: date
+    # The frontend only chooses how it intends to pay — amount, status, and
+    # any provider IDs are always backend-controlled. Defaults to RAZORPAY
+    # so existing clients that predate COD keep working unchanged.
+    payment_method: PaymentMethod = PaymentMethod.RAZORPAY
 
 class OrderResponse(BaseModel):
 
@@ -62,9 +67,14 @@ class OrderResponse(BaseModel):
     longitude: Decimal
     location_accuracy: Decimal | None
 
+    # Payment is created alongside the Order, so this should never actually
+    # be None in practice — Optional here only guards against a stale row
+    # from before Payment existed.
+    payment: PaymentResponse | None = None
+
     model_config = ConfigDict(from_attributes=True)
-    
-    
+
+
 # status
 class UpdateOrderStatusRequest(BaseModel):
     status: OrderStatus

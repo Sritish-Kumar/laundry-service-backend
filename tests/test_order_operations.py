@@ -139,6 +139,10 @@ def _order_payload(address_id, service_type_id, laundry_item_type_id, **override
         "address_id": address_id,
         "pickup_date": "2026-08-20",
         "pickup_slot": "10:00-12:00",
+        # These tests exercise status-transition mechanics (permissions,
+        # ownership, workflow shape), not payment integration — COD means
+        # they never trip the RAZORPAY-must-be-PAID-before-pickup gate.
+        "payment_method": "COD",
         "items": [
             {
                 "laundry_item_type_id": laundry_item_type_id,
@@ -506,6 +510,13 @@ def test_normal_workflow_including_ironing_branch(client):
     client.post(
         f"/delivery/orders/{order_id}/delivery/claim", headers=scenario.agent_b_headers
     )
+
+    # COD requires cash collected before DELIVERED (Part 3).
+    collect = client.post(
+        f"/payments/orders/{order_id}/cod/collect", headers=scenario.agent_b_headers
+    )
+    assert collect.status_code == 200
+
     final = _set_status(client, order_id, "DELIVERED", scenario.agent_b_headers)
     assert final.status_code == 200
     assert final.json()["status"] == "DELIVERED"

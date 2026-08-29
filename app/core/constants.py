@@ -33,3 +33,13 @@ class VerificationPurpose(str, Enum):
     PASSWORD_RESET = "PASSWORD_RESET"
     EMAIL_CHANGE = "EMAIL_CHANGE"
     PHONE_VERIFICATION = "PHONE_VERIFICATION"
+
+class PaymentMethod(str, Enum):
+    RAZORPAY = "RAZORPAY"
+    COD = "COD"
+
+class PaymentStatus(str, Enum):
+    PENDING = "PENDING"
+    PAID = "PAID"
+    FAILED = "FAILED"
+    REFUNDED = "REFUNDED"
